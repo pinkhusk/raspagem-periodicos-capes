@@ -229,3 +229,4 @@ Em muitos desses casos, pode ser necessário atualizar novamente o valor do camp
 - O script foi desenvolvido para fins de pesquisa e organização de dados bibliográficos.
 - A estrutura de extração pode precisar de ajustes caso o Portal de Periódicos da CAPES altere o formato da página.
 - O uso do script deve respeitar as condições de acesso e uso da plataforma.
+- O método alternativo foi desenvolvido com o apoio da IA Kilo Code, extensão de codificação com IA integrada ao VsCodium por meio do ecossistema de extensões compatíveis.
