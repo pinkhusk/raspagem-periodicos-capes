@@ -1,0 +1,267 @@
+from bs4 import BeautifulSoup
+import re
+import demjson3
+import sqlite3
+import os
+import unicodedata
+from pathlib import Path
+
+
+# =========================
+# CONFIGURAÇÕES DA PESQUISA
+# =========================
+
+pesquisa = "mvi_html"
+termo = "pesquisa"
+
+
+def slugify(texto):
+    texto = unicodedata.normalize("NFKD", texto)
+    texto = texto.encode("ascii", "ignore").decode("ascii")
+    texto = texto.lower()
+    texto = re.sub(r"[^a-z0-9]+", "_", texto)
+    texto = texto.strip("_")
+    return texto
+
+
+filename = slugify(termo)
+
+try:
+    SCRIPT_DIR = Path(__file__).resolve().parent
+except NameError:
+    SCRIPT_DIR = Path.cwd()
+
+PASTA_HTML = SCRIPT_DIR / "html"
+DB_PATH = SCRIPT_DIR / f"{pesquisa}.db"
+
+
+# =========================
+# FUNÇÕES AUXILIARES
+# =========================
+
+def quote_identifier(nome):
+
+    return '"' + nome.replace('"', '""') + '"'
+
+
+def limpar_texto_html(elemento):
+
+    if elemento is None:
+        return None
+
+    texto = elemento.get_text("", strip=False)
+    texto = re.sub(r"\s+", " ", texto)
+    texto = texto.strip()
+
+    return texto
+
+
+def encontrar_paginas_html(pasta, filename):
+
+    if not pasta.exists():
+        raise FileNotFoundError(f"A pasta não existe: {pasta}")
+
+    padrao = re.compile(
+        rf"^{re.escape(filename)}_pagina(\d+)\.html$",
+        re.IGNORECASE
+    )
+
+    arquivos = []
+
+    for arquivo in pasta.iterdir():
+        if arquivo.is_file():
+            match = padrao.match(arquivo.name)
+
+            if match:
+                numero_pagina = int(match.group(1))
+                arquivos.append((numero_pagina, arquivo))
+
+    arquivos.sort(key=lambda x: x[0])
+
+    return [arquivo for _, arquivo in arquivos]
+
+
+def encontrar_script_com_itens(soup):
+
+    for script in soup.find_all("script"):
+        conteudo = script.string or script.get_text()
+
+        if conteudo and re.search(r"const\s+itens", conteudo):
+            return conteudo
+
+    return None
+
+
+def extrair_array_itens(conteudo_script):
+
+    match = re.search(
+        r"const\s+itens\s*=\s*(\[.*?\]);",
+        conteudo_script,
+        re.DOTALL
+    )
+
+    if not match:
+        return []
+
+    try:
+        return demjson3.decode(match.group(1))
+    except Exception as e:
+        print(f"Erro ao converter const itens para objeto Python: {e}")
+        return []
+
+
+def extrair_itens_do_html(caminho_html):
+
+    with open(caminho_html, "r", encoding="utf-8") as f:
+        html = f.read()
+
+    soup = BeautifulSoup(html, "html.parser")
+
+    conteudo_script = encontrar_script_com_itens(soup)
+
+    if not conteudo_script:
+        print(f"'const itens' não encontrado em: {caminho_html.name}")
+        return []
+
+    itens = extrair_array_itens(conteudo_script)
+
+    if not itens:
+        print(f"Nenhum item extraído em: {caminho_html.name}")
+        return []
+
+    paragrafos = soup.select("p.mb-0.small")
+
+    textos = [
+        limpar_texto_html(p)
+        for p in paragrafos
+    ]
+
+    if len(textos) != len(itens):
+        print(
+            f"Atenção em {caminho_html.name}: "
+            f"{len(itens)} itens encontrados, mas "
+            f"{len(textos)} textos em <p class='mb-0 small'>."
+        )
+
+    for i, item in enumerate(itens):
+        if i < len(textos):
+            item["concept"] = textos[i]
+        else:
+            item["concept"] = None
+
+    print(f"{caminho_html.name}: {len(itens)} itens extraídos.")
+
+    return itens
+
+
+def remover_duplicatas_por_id(itens):
+    """
+    Remove duplicatas mantendo a primeira ocorrência de cada id.
+    """
+    vistos = set()
+    unicos = []
+
+    for item in itens:
+        id_art = item.get("id")
+
+        if not id_art:
+            continue
+
+        if id_art not in vistos:
+            vistos.add(id_art)
+            unicos.append(item)
+
+    return unicos
+
+
+def salvar_no_sqlite(itens, db_path, nome_tabela):
+
+    tabela = quote_identifier(nome_tabela)
+
+    conn = sqlite3.connect(db_path, isolation_level=None)
+
+    conn.execute(f"""
+        CREATE TABLE IF NOT EXISTS {tabela} (
+            type TEXT,
+            id TEXT PRIMARY KEY,
+            title TEXT,
+            autor TEXT,
+            resource_title TEXT,
+            publish_year TEXT,
+            volume TEXT,
+            issue TEXT,
+            first_page TEXT,
+            last_page TEXT,
+            doi TEXT,
+            abstract TEXT
+        ) STRICT
+    """)
+
+    for item in itens:
+        conn.execute(f"""
+            INSERT OR REPLACE INTO {tabela}
+            (
+                type,
+                id,
+                title,
+                autor,
+                resource_title,
+                publish_year,
+                volume,
+                issue,
+                first_page,
+                last_page,
+                doi,
+                abstract
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            item.get("type"),
+            item.get("id"),
+            item.get("title"),
+            item.get("autor"),
+            item.get("resource_title"),
+            item.get("publish_year"),
+            item.get("volume"),
+            item.get("issue"),
+            item.get("first_page"),
+            item.get("last_page"),
+            item.get("doi"),
+            item.get("concept"),
+        ))
+
+    conn.close()
+
+
+# =========================
+# EXECUÇÃO PRINCIPAL
+# =========================
+
+arquivos_html = encontrar_paginas_html(PASTA_HTML, filename)
+
+if not arquivos_html:
+    raise FileNotFoundError(
+        f"Nenhum arquivo encontrado em {PASTA_HTML} com o padrão "
+        f"{filename}_pagina{{numero}}.html"
+    )
+
+print(f"Arquivos encontrados: {len(arquivos_html)}")
+
+todos_itens = []
+
+for caminho_html in arquivos_html:
+    itens_pagina = extrair_itens_do_html(caminho_html)
+    todos_itens.extend(itens_pagina)
+
+json_obj = remover_duplicatas_por_id(todos_itens)
+
+if not json_obj:
+    raise RuntimeError("Nenhum artigo extraído dos HTMLs encontrados.")
+
+print(f"Total de artigos únicos: {len(json_obj)}")
+
+salvar_no_sqlite(json_obj, DB_PATH, filename)
+
+print("Concluído.")
+print(f"Banco salvo em: {DB_PATH}")
+print(f"Tabela criada/atualizada: {filename}")
