@@ -124,7 +124,3 @@ Em muitos desses casos, pode ser necessário atualizar novamente o valor do camp
 - O script foi desenvolvido para fins de pesquisa e organização de dados bibliográficos.
 - A estrutura de extração pode precisar de ajustes caso o Portal de Periódicos da CAPES altere o formato da página.
 - O uso do script deve respeitar as condições de acesso e uso da plataforma.
-
-## Licença
-
-Este projeto está licenciado sob a licença Creative Commons Attribution-NonCommercial 4.0 International Public License.
