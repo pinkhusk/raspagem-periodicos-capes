@@ -7,7 +7,7 @@ import sqlite3
 
 pesquisa = "nome_da_pesquisa"  # Troque pelo nome que quiser dar para sua base de dados.
 termo = "termos de pesquisa"  # Troque pelos termos de busca que deseja utilizar.
-filename = re.sub(r"\W+", "_", termo.lower())
+filename = termo.replace(' ', '_')
 
 url = (
     'https://periodicos.capes.gov.br/index.php/acervo/buscador.html?q=all%3Acontains%28'+ termo.replace(' ', '+') 
