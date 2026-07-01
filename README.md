@@ -71,30 +71,9 @@ termo = "quilombo território"
 
 O valor definido em `pesquisa` será usado para nomear o arquivo `.db`. Assim, ao executar o script com diferentes termos de busca e o mesmo nome de pesquisa, novas tabelas poderão ser adicionadas ao mesmo banco de dados.
 
-Execute o script Python:
+### Configuração dos cookies
 
-```bash
-python raspagem_periodicos_capes.py
-```
-
-## Saída gerada
-
-Ao final da execução, será criado um arquivo `.db` com o nome definido em `pesquisa`, contendo os registros coletados.
-
-Exemplo:
-
-```bash
-quilombos.db
-```
-## Possíveis erros
-
-Durante a execução, o script pode falhar caso o Portal de Periódicos da CAPES bloqueie a requisição, altere a estrutura da página ou exija cookies atualizados para permitir o acesso aos resultados.
-
-Um erro comum acontece quando os cookies informados no cabeçalho da requisição expiram. Nesse caso, atualize manualmente o valor do campo `"Cookie"` no dicionário `headers`.
-
-### Como atualizar os cookies da requisição
-
-O procedimento é semelhante no Firefox, Chrome e outros navegadores baseados em Chromium:
+Antes de executar o script, pode ser necessário atualizar manualmente o valor do campo `"Cookie"` no dicionário `headers`, já que cookies de sessão podem expirar com o tempo. Os navegadores permitem inspecionar os cabeçalhos HTTP de cada requisição na aba de rede e visualizar os campos de cabeçalho, incluindo `Cookie`.
 
 1. Acesse o Portal de Periódicos da CAPES no navegador.
 2. Pressione `F12` para abrir as Ferramentas de Desenvolvedor.
@@ -115,16 +94,30 @@ headers = {
 }
 ```
 
-### Sinais de que os cookies precisam ser atualizados
+Execute o script Python:
+
+```bash
+python raspagem_periodicos_capes.py
+```
+
+## Saída gerada
+
+Ao final da execução, será criado um arquivo `.db` com o nome definido em `pesquisa`, contendo os registros coletados.
+
+Exemplo:
+
+```bash
+quilombos.db
+```
+
+## Possíveis erros
 
 - A busca não retorna resultados esperados.
 - O HTML da página vem incompleto ou diferente do esperado.
 - O script não encontra a variável `const itens`.
 - O portal responde com bloqueio, redirecionamento ou erro de acesso.
 
-### Observação
-
-Como cookies de sessão expiram com o tempo, pode ser necessário repetir esse procedimento periodicamente.
+Em muitos desses casos, pode ser necessário atualizar novamente o valor do campo `"Cookie"` no cabeçalho da requisição, pois navegadores e ferramentas de desenvolvedor exibem esses dados apenas para a sessão ativa.
 
 ## Observações
 
