@@ -1,5 +1,6 @@
 # Raspagem de Dados no Portal de Periódicos da CAPES
-Script em Python para raspagem de dados no Portal de Periódicos da CAPES, com coleta de metadados e resumo dos resultados em banco SQLite.
+
+Script em Python para extração de dados do Portal de Periódicos da CAPES, com suporte a coleta direta via requisição HTTP e processamento alternativo de páginas HTML salvas localmente. Os dados extraídos são armazenados em banco SQLite.
 
 ## Objetivo
 
@@ -12,8 +13,11 @@ Este projeto automatiza a busca por termos específicos no Portal de Periódicos
 - Acessa a página de detalhes de cada artigo.
 - Coleta o resumo (`abstract`) dos registros.
 - Salva os dados em um banco SQLite.
+- Oferece um método alternativo de extração a partir de arquivos HTML salvos localmente.
 
 ## Bibliotecas utilizadas
+
+### Método principal
 
 - requests
 - beautifulsoup4
@@ -22,16 +26,24 @@ Este projeto automatiza a busca por termos específicos no Portal de Periódicos
 - json
 - sqlite3
 
-## Estrutura do script
+### Método alternativo
 
-O script:
+- beautifulsoup4
+- demjson3
+- re
+- sqlite3
+- os
+- unicodedata
+- pathlib
 
-- Define o termo de pesquisa.
-- Monta a URL de busca no portal.
-- Faz a requisição HTTP com cabeçalhos personalizados.
-- Extrai a lista de itens retornada no HTML.
-- Acessa cada registro individualmente para obter o resumo (`abstract`).
-- Salva os dados em uma tabela SQLite.
+## Métodos disponíveis
+
+Este repositório oferece dois modos de extração de dados do Portal de Periódicos da CAPES:
+
+- `raspagem_periodicos_capes.py`: realiza a coleta diretamente no portal por meio de requisições HTTP.
+- `raspagem_periodicos_capes_html.py`: realiza a extração a partir de arquivos HTML previamente salvos localmente.
+
+O segundo script pode ser útil quando o método direto não funciona, por exemplo, em casos de expiração de cookies, bloqueio da requisição ou mudanças temporárias na resposta do portal.
 
 ## Requisitos
 
@@ -41,7 +53,18 @@ Antes de executar, instale as dependências necessárias:
 pip install requests beautifulsoup4 demjson3
 ```
 
-## Como executar
+## Método principal: coleta direta no portal
+
+O script principal:
+
+- define o termo de pesquisa;
+- monta a URL de busca no portal;
+- faz a requisição HTTP com cabeçalhos personalizados;
+- extrai a lista de itens retornada no HTML;
+- acessa cada registro individualmente para obter o resumo (`abstract`);
+- salva os dados em uma tabela SQLite.
+
+### Como executar
 
 Clone este repositório:
 
@@ -65,15 +88,15 @@ termo = "termo da pesquisa"
 Por exemplo:
 
 ```python
-pesquisa = "quilombos"
-termo = "quilombo território"
+pesquisa = "tcc"
+termo = "direitos crianças adolescentes"
 ```
 
 O valor definido em `pesquisa` será usado para nomear o arquivo `.db`. Assim, ao executar o script com diferentes termos de busca e o mesmo nome de pesquisa, novas tabelas poderão ser adicionadas ao mesmo banco de dados.
 
 ### Configuração dos cookies
 
-Antes de executar o script, pode ser necessário atualizar manualmente o valor do campo `"Cookie"` no dicionário `headers`, já que cookies de sessão podem expirar com o tempo. Os navegadores permitem inspecionar os cabeçalhos HTTP de cada requisição na aba de rede e visualizar os campos de cabeçalho, incluindo `Cookie`.
+Antes de executar o script, pode ser necessário atualizar manualmente o valor do campo `"Cookie"` no dicionário `headers`, já que cookies de sessão podem expirar com o tempo. Ferramentas de desenvolvedor do navegador permitem visualizar os cabeçalhos HTTP das requisições feitas pela página, incluindo o campo `Cookie`.
 
 1. Acesse o Portal de Periódicos da CAPES no navegador.
 2. Pressione `F12` para abrir as Ferramentas de Desenvolvedor.
@@ -100,15 +123,95 @@ Execute o script Python:
 python raspagem_periodicos_capes.py
 ```
 
-## Saída gerada
+### Saída gerada
 
 Ao final da execução, será criado um arquivo `.db` com o nome definido em `pesquisa`, contendo os registros coletados.
 
 Exemplo:
 
 ```bash
-quilombos.db
+tcc.db
 ```
+
+## Método alternativo: processamento de HTML local
+
+O script `raspagem_periodicos_capes_html.py` foi desenvolvido como alternativa para situações em que a raspagem direta pelo portal não seja possível.
+
+Nesse caso, o processo funciona a partir de arquivos HTML já salvos no computador, contendo páginas de resultados da busca realizada no Portal de Periódicos da CAPES.
+
+### Como funciona
+
+O script alternativo:
+
+- procura arquivos HTML em uma pasta local;
+- identifica páginas no padrão `{termo}_pagina1.html`, `{termo}_pagina2.html`, `{termo}_pagina3.html` etc.;
+- extrai os itens presentes no bloco JavaScript `const itens = [...]`;
+- extrai os resumos presentes nos elementos `<p class="mb-0 small">`;
+- remove registros duplicados com base no campo `id`;
+- salva os dados em uma tabela SQLite.
+
+### Estrutura esperada dos arquivos
+
+Os arquivos HTML devem estar em uma pasta definida no script, por padrão:
+
+```python
+PASTA_HTML = SCRIPT_DIR / "html"
+```
+
+O nome dos arquivos deve seguir este padrão:
+
+```text
+termo_pagina1.html
+termo_pagina2.html
+termo_pagina3.html
+```
+
+Por exemplo:
+
+```text
+direitos_criança_adolescente_pagina1.html
+direitos_criança_adolescente_pagina2.html
+```
+
+O nome-base dos arquivos é gerado automaticamente a partir do valor definido em `termo`, substituindo os espaços por `_`.
+
+### Como executar o método alternativo
+
+Edite o script `raspagem_periodicos_capes_html.py` com os valores desejados:
+
+```python
+pesquisa = "nome da base de dados"
+termo = "termos de busca"
+```
+
+Verifique se os arquivos HTML estão salvos na pasta correta e com o nome esperado.
+
+Depois, execute:
+
+```bash
+python raspagem_periodicos_capes_html.py
+```
+
+### Saída gerada pelo método alternativo
+
+Assim como no método principal, será criado ou atualizado um arquivo `.db` com o nome definido em `pesquisa`.
+
+Exemplo:
+
+```bash
+pesquisa.db
+```
+
+A tabela criada no banco terá nome derivado do termo pesquisado, com caracteres normalizados para evitar problemas de compatibilidade com nomes de arquivo e identificadores no SQLite.
+
+### Quando usar este método
+
+Use o método alternativo quando:
+
+- o script principal não conseguir acessar corretamente os resultados do portal;
+- os cookies da sessão expirarem;
+- você já tiver salvo manualmente as páginas HTML da busca;
+- quiser trabalhar com uma cópia local dos resultados.
 
 ## Possíveis erros
 
@@ -116,8 +219,10 @@ quilombos.db
 - O HTML da página vem incompleto ou diferente do esperado.
 - O script não encontra a variável `const itens`.
 - O portal responde com bloqueio, redirecionamento ou erro de acesso.
+- Nenhum arquivo HTML é encontrado na pasta esperada pelo método alternativo.
+- O número de textos extraídos no HTML não corresponde ao número de itens encontrados.
 
-Em muitos desses casos, pode ser necessário atualizar novamente o valor do campo `"Cookie"` no cabeçalho da requisição, pois navegadores e ferramentas de desenvolvedor exibem esses dados apenas para a sessão ativa.
+Em muitos desses casos, pode ser necessário atualizar novamente o valor do campo `"Cookie"` no cabeçalho da requisição ou revisar a estrutura dos arquivos HTML utilizados.
 
 ## Observações
 
